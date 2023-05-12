@@ -1,0 +1,36 @@
+Author of this Release Package: 
+	Yuliang Guo (yuliang_guo@brown.edu)
+
+Reference: 
+	"A Multi-Stage Approach to Curve Extraction", Y.Guo, N.Kumar, M.Narayanan and B.Kimia, ECCV 2014
+	"On Evaluating Methods for Recovering Image Curve Fragments", Y.Guo, B.Kimia, CVPRW 2012
+Need to mention that this package is still under development, so that the evaluation results might not be as exact as reported in the published papers. 
+
+Setup: 
+	This package is tested on Ubuntu system and Matlab after 2012. In some case you need to link your system cxx lib to matlab installed cxx lib
+	The built excutable 'util/dborl_compute_curve_frags' only works on Ubuntu 12.04 or later version relying on corresponding c and c++ libs. If you need to compile it from you system, you need to install vxl and lemsvxl libaray first. Please contact the author for details.
+	
+Prepare edge maps:
+
+	Follow the directory structure in 'Data/TO_SEL_CFGD/'. Construct your own test folder 'Data/****/', prepare your edgemap in the format as our '.edg' file and put them in 'Data/****/edges/'. 
+	
+	We provide a few third-party edge detectors, but with more accurate orientation modification (third-order orientation correction), check:
+	util/gPb_detector/Main_CFGD_gPb_TO.m     "Contour detection and hierarchical image segmentation, Arbelaez etal, PAMI 2011"
+	util/SE_Dollar_detector/edgesDemo_TO.m    "Structured Forests for Fast Edge Detection, Dollar and Zitnick, ICCV 2013"
+        util/multispectral_TO/main_multispectual_TO_VOC2007.m    "No grouping left behind: From edges to curve fragments, Tamrakar and Kimia, ICCV 2007"
+	
+Compute Final Curves:
+	Change the paths in 'demo_compute_SEL'.
+	Change the 'Prefix' to 'TO_SEL' or 'gPb_SEL' or 'SE_SEL'depending on your edgemap. Prefix is to load in the trained classifier weights for the corresponding edgemap input.
+	
+
+Evaluation:
+	check 'Eval/main_eval_CFGD_varying_num' with your paths (****), and your prefix name (####)
+
+	
+Evaluation contour maps directly:
+	Need to prepare the contour maps in the format of '.cem' in 'Data/****/final_curves/'.
+	look at 'util/io/write_cem.m' to understand the format of '.cem' file.
+	Follow the Training steps 4,5, and run Evaluation.
+
+

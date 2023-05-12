@@ -1,0 +1,22 @@
+gPb: (semantic classifier weired)
+	nbr: 20
+	geom_merge: 0.4
+	merge: 0.4
+
+TO:
+	nbr: 20
+	0.4
+	0.4
+
+SE:
+	nbr: 20
+	0.2
+	0.3
+
+
+Affective factors: 
+
+1. Merge Threshold should be learnt directly.  (Problem: classification of merging is not directly correlated to contour evaluation)
+	not solved yet
+2. look at the broken pieces along the chair in 2018, further range belief propagation is needed (deal with larger gaps)
+
