@@ -1,6 +1,8 @@
-This is the repository of TCG curve detector(in Matlab).
+## Topological Contour Graph (TCG) Extraction
 
-Usage:
+This is the repository of TCG curve detector (in Matlab). Originally developed by Yuliang Guo; documented by Hongyi Fan and Chiang-Heng Chien. Used and edited by Chiang-Heng Chien.
+
+## Usage:
 
 To run TCG, one needs to first generate SE edge. 
 
