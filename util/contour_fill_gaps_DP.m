@@ -21,6 +21,17 @@ end_point_vid_map = zeros(h,w);
 end_eids = [G_test.var(:).actual_edge_id];
 end_Y = round(edges(end_eids', 2))+1;
 end_X = round(edges(end_eids', 1))+1;
+
+%> Handle out of image bound situation
+ind_min = find(end_Y < 1);
+ind_max = find(end_Y > h);
+end_Y(ind_min) = 1;
+end_Y(ind_max) = h;
+ind_min = find(end_X < 1);
+ind_max = find(end_X > w);
+end_X(ind_min) = 1;
+end_X(ind_max) = w;
+
 end_point_eid_map(sub2ind([h,w], end_Y, end_X))=end_eids;
 end_point_vid_map(sub2ind([h,w], end_Y, end_X))=[G_test.var(:).id];
 
@@ -62,6 +73,17 @@ for vid =1:length(G_test.var)
     cur_y = edges(G_test.var(vid).actual_edge_id,2);
     cur_x = round(cur_x)+1;
     cur_y = round(cur_y)+1;
+
+    if cur_x < 1
+        cur_x = 1;
+    elseif cur_x > w
+        cur_x = w;
+    end
+    if cur_y < 1
+        cur_y = 1;
+    elseif cur_y > h
+        cur_y = h;
+    end
     
     if(jct_map(cur_y, cur_x))
         edges(G_test.var(vid).actual_edge_id, 5) = 3;
@@ -447,6 +469,14 @@ end_point_vid_map = zeros(h,w);
 end_eids = [G_test.var(:).actual_edge_id];
 end_Y = round(edges(end_eids', 2))+1;
 end_X = round(edges(end_eids', 1))+1;
+ind_min = find(end_Y < 1);
+ind_max = find(end_Y > h);
+end_Y(ind_min) = 1;
+end_Y(ind_max) = h;
+ind_min = find(end_X < 1);
+ind_max = find(end_X > w);
+end_X(ind_min) = 1;
+end_X(ind_max) = w;
 end_point_eid_map(sub2ind([h,w], end_Y, end_X))=end_eids;
 end_point_vid_map(sub2ind([h,w], end_Y, end_X))=[G_test.var(:).id];
 for vid =1:length(G_test.var)
@@ -468,10 +498,6 @@ for vid =1:length(G_test.var)
     cur_y = edges(G_test.var(vid).actual_edge_id,2);
     cur_x = round(cur_x)+1;
     cur_y = round(cur_y)+1;
-        
-%     if(cur_x==530 && cur_y==268)
-%         keyboard;
-%     end
     
     if(jct_map(cur_y, cur_x))
         edges(G_test.var(vid).actual_edge_id, 5) = 1;
@@ -482,11 +508,6 @@ for vid =1:length(G_test.var)
     cur_c = cfrags{cid};
     c_len =  contour_length_mex(cur_c');
     e_size = size(cur_c,1);
-    
-%     % skip short contours
-%     if(e_size<5)
-%         continue;
-%     end
     
     is_start = 1;
     if(G_test.fac(cid).nbrs_var(1)==vid)
