@@ -8,6 +8,7 @@
 namespace tcg {
 
 /// One edgel / contour vertex: x, y, direction, confidence, d2f (matches .cem columns).
+/// During gap fill, d2f is repurposed as an endpoint/junction label (0/1/2/3).
 struct Edge {
   double x{};
   double y{};
@@ -44,6 +45,24 @@ struct BreakerParams {
   int nbr_num_edges{20};
   /// Default corner threshold (radians); can be overridden per call.
   double corner_angle_th{3.14159265358979323846 / 6.0};
+};
+
+/// Parameters used by contour_fill_gaps_DP (main_TCG_CH.m defaults).
+struct GapFillParams {
+  int DP_gap_range{15};
+  double DP_angle_th{3.14159265358979323846 / 4.0};
+  double DP_contrast_th{0.1};
+  int shape_gap_range{8};
+  double shape_ori_range{3.14159265358979323846 / 9.0};
+  bool vis{false};
+};
+
+/// Soft edge magnitude + orientation maps from imgradient (row-major, size h*w).
+struct GradientMaps {
+  int height{};
+  int width{};
+  std::vector<double> edgemap_soft;  // normalized to [0,1]
+  std::vector<double> thetamap;      // wrapToPi(-imgradient_angle + pi/2)
 };
 
 }  // namespace tcg
