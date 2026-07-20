@@ -19,6 +19,7 @@ add_executable(TCG
   src/prune_noise.cpp
   src/merge_geom.cpp
   src/classify_bp.cpp
+  src/write_cem.cpp
 )
 
 target_include_directories(TCG PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include" ${OpenCV_INCLUDE_DIRS})

@@ -7,20 +7,30 @@
 #include "load_edg.hpp"
 #include "merge_geom.hpp"
 #include "prune_noise.hpp"
+#include "write_cem.hpp"
 
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
-#include <fstream>
-#include <iomanip>
 #include <iostream>
 #include <string>
 
 static void print_usage(const char* argv0) {
   std::cerr << "Usage: " << argv0
-            << " <input.edg> <input.cem> <input.image> [ori_diff_th] [corners_out.txt]\n"
+            << " <input.edg> <input.cem> <input.image> [ori_diff_th] [output.cem]\n"
             << "  Runs Step 3 (corner break) through final post-process.\n"
-            << "  ori_diff_th: radians (default: pi/18)\n";
+            << "  ori_diff_th: radians (default: pi/18)\n"
+            << "  output.cem: final contours (.CEM v2.0); default: <image_stem>_tcg_cpp.cem\n";
+}
+
+static std::string default_output_cem(const std::string& img_path) {
+  // Derive "<stem>_tcg_cpp.cem" next to the image (or cwd if no slash).
+  std::string stem = img_path;
+  const auto slash = stem.find_last_of("/\\");
+  if (slash != std::string::npos) stem = stem.substr(slash + 1);
+  const auto dot = stem.find_last_of('.');
+  if (dot != std::string::npos) stem = stem.substr(0, dot);
+  return stem + "_tcg_cpp.cem";
 }
 
 int main(int argc, char** argv) {
@@ -166,6 +176,15 @@ int main(int argc, char** argv) {
   std::cout << "[Final] number of curve fragments = " << finalp.contours.size()
             << " / time = " << prune2_time_ms << " ms" << std::endl;
   //>========================== MATLAB prune_noise_curves function (2nd pass) ==========================
+
+  //> Write final contours as .CEM v2.0 (readable by MATLAB load_contours / draw_contours)
+  const std::string out_cem = (argc >= 6) ? argv[5] : default_output_cem(img_path);
+  if (!tcg::write_cem(out_cem, finalp.contours, h, w, err)) {
+    std::cerr << "write_cem: " << err << "\n";
+    return 1;
+  }
+  std::cout << "[Write] final contours -> " << out_cem << " (" << finalp.contours.size()
+            << " fragments)" << std::endl;
 
   return 0;
 }
