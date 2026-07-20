@@ -14,6 +14,12 @@ add_executable(TCG
   src/image_gradient.cpp
   src/dp_gap.cpp
   src/contour_fill_gaps.cpp
+  src/fac_graph.cpp
+  src/break_t_junctions.cpp
+  src/prune_noise.cpp
+  src/merge_geom.cpp
+  src/classify_bp.cpp
+  src/write_cem.cpp
 )
 
 target_include_directories(TCG PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include" ${OpenCV_INCLUDE_DIRS})
@@ -22,6 +28,5 @@ target_link_libraries(TCG PRIVATE ${OpenCV_LIBS})
 if(MSVC)
   target_compile_definitions(TCG PRIVATE _USE_MATH_DEFINES)
 else()
-  # Expose M_PI from <cmath> / math.h (e.g. glibc in ISO C++ mode).
   target_compile_definitions(TCG PRIVATE _DEFAULT_SOURCE)
 endif()

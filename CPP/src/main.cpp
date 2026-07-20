@@ -1,22 +1,36 @@
+#include "break_t_junctions.hpp"
+#include "classify_bp.hpp"
 #include "contour_breaker.hpp"
 #include "contour_fill_gaps.hpp"
 #include "image_gradient.hpp"
 #include "load_cem.hpp"
 #include "load_edg.hpp"
+#include "merge_geom.hpp"
+#include "prune_noise.hpp"
+#include "write_cem.hpp"
 
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
-#include <fstream>
-#include <iomanip>
 #include <iostream>
 #include <string>
 
 static void print_usage(const char* argv0) {
   std::cerr << "Usage: " << argv0
-            << " <input.edg> <input.cem> <input.image> [ori_diff_th] [corners_out.txt]\n"
-            << "  Runs Step 3 (corner break) then Step 4 (gap fill DP).\n"
-            << "  ori_diff_th: radians (default: pi/18)\n";
+            << " <input.edg> <input.cem> <input.image> [ori_diff_th] [output.cem]\n"
+            << "  Runs Step 3 (corner break) through final post-process.\n"
+            << "  ori_diff_th: radians (default: pi/18)\n"
+            << "  output.cem: final contours (.CEM v2.0); default: <image_stem>_tcg_cpp.cem\n";
+}
+
+static std::string default_output_cem(const std::string& img_path) {
+  // Derive "<stem>_tcg_cpp.cem" next to the image (or cwd if no slash).
+  std::string stem = img_path;
+  const auto slash = stem.find_last_of("/\\");
+  if (slash != std::string::npos) stem = stem.substr(slash + 1);
+  const auto dot = stem.find_last_of('.');
+  if (dot != std::string::npos) stem = stem.substr(0, dot);
+  return stem + "_tcg_cpp.cem";
 }
 
 int main(int argc, char** argv) {
@@ -50,9 +64,15 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  const int h = grad.height;
+  const int w = grad.width;
+
   std::cout << "[Summary] EDG " << edg.width << "x" << edg.height << " edges = " << edg.edges.size()
-            << " | CEM contours = " << cem.contours.size() << " | IMG size = " << grad.width << "x" << grad.height
-            << "\n";
+            << " | CEM contours = " << cem.contours.size() << " | IMG size = " << w << "x" << h << std::endl;
+  
+
+  //> Soft map from .edg (MATLAB edgemap_soft0)
+  const std::vector<double>& edgemap_soft0 = edg.edgemap;
 
   tcg::BreakerParams bparams;
   bparams.nbr_num_edges = 20;
@@ -60,26 +80,14 @@ int main(int argc, char** argv) {
 
   //>========================== MATLAB contour_breaker_at_corner function ==========================
   auto t0 = std::chrono::steady_clock::now();
-  tcg::CornerBreakResult broken = tcg::contour_breaker_at_corner(cem.contours, cem.contour_edge_idx, bparams, ori_th);
+  tcg::CornerBreakResult broken =
+      tcg::contour_breaker_at_corner(cem.contours, cem.contour_edge_idx, bparams, ori_th);
   auto t1 = std::chrono::steady_clock::now();
   const double contour_breaker_time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
   std::cout << "[Step 3] number of curve fragments = " << broken.contours.size()
             << " / number of corners = " << broken.corner_pts.size()
             << " / time = " << contour_breaker_time_ms << " ms" << std::endl;
   //>========================== MATLAB contour_breaker_at_corner function ==========================
-
-  //> Optional: evaluate the result consistency between MATLAB and C++ on Step 3
-  // if (argc >= 6) {
-  //   std::ofstream ofs(argv[5]);
-  //   if (!ofs) {
-  //     std::cerr << "Cannot write corner file: " << argv[5] << "\n";
-  //     return 1;
-  //   }
-  //   ofs << std::setprecision(17);
-  //   for (const auto& e : broken.corner_pts) {
-  //     ofs << e.x << '\t' << e.y << '\t' << e.dir << '\t' << e.conf << '\t' << e.d2f << '\n';
-  //   }
-  // }
 
   //>========================== MATLAB contour_fill_gaps_DP function ==========================
   tcg::GapFillParams gparams;
@@ -89,18 +97,94 @@ int main(int argc, char** argv) {
   gparams.shape_gap_range = 8;
   gparams.shape_ori_range = M_PI / 9.0;
 
-  const int h = grad.height;
-  const int w = grad.width;
-
   t0 = std::chrono::steady_clock::now();
-  tcg::GapFillResult filled = tcg::contour_fill_gaps_DP(broken.contours, broken.contour_edge_idx, h, w, cem.edges, grad, gparams);
+  tcg::GapFillResult filled = tcg::contour_fill_gaps_DP(broken.contours, broken.contour_edge_idx, h, w,
+                                                        cem.edges, grad, gparams);
   t1 = std::chrono::steady_clock::now();
   const double contour_fill_gaps_time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-
-  std::cout << "[Step 4] number of curve fragments = " << filled.contours.size() 
+  std::cout << "[Step 4] number of curve fragments = " << filled.contours.size()
             << " / number of edges = " << filled.edges.size()
             << " / time = " << contour_fill_gaps_time_ms << " ms" << std::endl;
   //>========================== MATLAB contour_fill_gaps_DP function ==========================
+
+  //>========================== MATLAB break_contours_at_T_junctions function ==========================
+  t0 = std::chrono::steady_clock::now();
+  tcg::TBreakResult tbroken =
+      tcg::break_contours_at_T_junctions(filled.contours, filled.contour_edge_idx, filled.edges);
+  t1 = std::chrono::steady_clock::now();
+  const double break_T_time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+  std::cout << "[T-break] number of curve fragments = " << tbroken.contours.size()
+            << " / time = " << break_T_time_ms << " ms" << std::endl;
+  //>========================== MATLAB break_contours_at_T_junctions function ==========================
+
+  //>========================== MATLAB prune_noise_curves function ==========================
+  tcg::PruneParams pparams;
+  pparams.noise_len_th = 5.0;
+  pparams.noise_prob_th = 0.05;
+
+  t0 = std::chrono::steady_clock::now();
+  tcg::PruneResult pruned = tcg::prune_noise_curves(tbroken.contours, tbroken.contour_edge_idx, h, w, edgemap_soft0, pparams);
+  t1 = std::chrono::steady_clock::now();
+  const double prune_time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+  std::cout << "[Prune] number of curve fragments = " << pruned.contours.size()
+            << " / time = " << prune_time_ms << " ms" << std::endl;
+  //>========================== MATLAB prune_noise_curves function ==========================
+
+  //>========================== MATLAB merge_cfrags_graphical_model_geom function ==========================
+  tcg::MergeGeomParams mparams;
+  mparams.geom_merge_angle_th = M_PI / 6.0;
+  mparams.nbr_num_edges = 20;
+
+  t0 = std::chrono::steady_clock::now();
+  tcg::MergeGeomResult merged = tcg::merge_cfrags_graphical_model_geom( pruned.contours, pruned.contour_edge_idx, tbroken.edges, mparams );
+  t1 = std::chrono::steady_clock::now();
+  const double merge_time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+  std::cout << "[Merge-geom] number of curve fragments = " << merged.contours.size()
+            << " / time = " << merge_time_ms << " ms" << std::endl;
+  //>========================== MATLAB merge_cfrags_graphical_model_geom function ==========================
+
+  //>========================== MATLAB classify_junction_type_wrt_graph_BP function ==========================
+  tcg::ClassifyBPParams bpparams;
+  bpparams.BP_merge_angle_th = M_PI / 9.0;
+  bpparams.BP_nbr_num_edges = 20;
+  bpparams.BP_clen_th = 15.0;
+
+  t0 = std::chrono::steady_clock::now();
+  tcg::ClassifyBPResult classified = tcg::classify_junction_type_wrt_graph_BP( merged.contours, merged.contour_edge_idx, tbroken.edges, bpparams );
+  t1 = std::chrono::steady_clock::now();
+  const double classify_bp_time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+  std::cout << "[Classify-BP] number of curve fragments = " << classified.contours.size()
+            << " / number of T junctions = " << classified.T_junctions.size()
+            << " / time = " << classify_bp_time_ms << " ms" << std::endl;
+  //>========================== MATLAB classify_junction_type_wrt_graph_BP function ==========================
+
+  //>========================== MATLAB contour_breaker_at_corner function (2nd pass) ==========================
+  t0 = std::chrono::steady_clock::now();
+  tcg::CornerBreakResult broken2 = tcg::contour_breaker_at_corner(classified.contours, classified.contour_edge_idx, bparams);
+  t1 = std::chrono::steady_clock::now();
+  const double contour_breaker2_time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+  std::cout << "[Corner2] number of curve fragments = " << broken2.contours.size()
+            << " / number of corners = " << broken2.corner_pts.size()
+            << " / time = " << contour_breaker2_time_ms << " ms" << std::endl;
+  //>========================== MATLAB contour_breaker_at_corner function (2nd pass) ==========================
+
+  //>========================== MATLAB prune_noise_curves function (2nd pass) ==========================
+  t0 = std::chrono::steady_clock::now();
+  tcg::PruneResult finalp = tcg::prune_noise_curves(broken2.contours, broken2.contour_edge_idx, h, w, edgemap_soft0, pparams);
+  t1 = std::chrono::steady_clock::now();
+  const double prune2_time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+  std::cout << "[Final] number of curve fragments = " << finalp.contours.size()
+            << " / time = " << prune2_time_ms << " ms" << std::endl;
+  //>========================== MATLAB prune_noise_curves function (2nd pass) ==========================
+
+  //> Write final contours as .CEM v2.0 (readable by MATLAB load_contours / draw_contours)
+  const std::string out_cem = (argc >= 6) ? argv[5] : default_output_cem(img_path);
+  if (!tcg::write_cem(out_cem, finalp.contours, h, w, err)) {
+    std::cerr << "write_cem: " << err << "\n";
+    return 1;
+  }
+  std::cout << "[Write] final contours -> " << out_cem << " (" << finalp.contours.size()
+            << " fragments)" << std::endl;
 
   return 0;
 }
