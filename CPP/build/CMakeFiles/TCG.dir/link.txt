@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/TCG.dir/src/main.cpp.o CMakeFiles/TCG.dir/src/load_edg.cpp.o CMakeFiles/TCG.dir/src/load_cem.cpp.o CMakeFiles/TCG.dir/src/contour_breaker.cpp.o -o TCG 
