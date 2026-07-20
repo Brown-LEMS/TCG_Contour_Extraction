@@ -1,1 +1,0 @@
-/usr/bin/c++ CMakeFiles/tcg_step3.dir/src/main.cpp.o CMakeFiles/tcg_step3.dir/src/load_edg.cpp.o CMakeFiles/tcg_step3.dir/src/load_cem.cpp.o CMakeFiles/tcg_step3.dir/src/contour_breaker.cpp.o -o tcg_step3 

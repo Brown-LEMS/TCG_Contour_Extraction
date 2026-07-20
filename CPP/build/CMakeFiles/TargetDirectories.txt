@@ -1,3 +1,0 @@
-/home/chchien/BrownU/research/shock_graph/TCG_Contour_Extraction/CPP/build/CMakeFiles/TCG.dir
-/home/chchien/BrownU/research/shock_graph/TCG_Contour_Extraction/CPP/build/CMakeFiles/edit_cache.dir
-/home/chchien/BrownU/research/shock_graph/TCG_Contour_Extraction/CPP/build/CMakeFiles/rebuild_cache.dir
