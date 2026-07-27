@@ -39,10 +39,10 @@ Once built is successful, provide specific `.edg`, `.cem`, and the original imag
 ```
 Using the files under `example_data`,
 ```bash
-./build/TCG ./example_data/edges/cable.edg \
-            ./example_data/contours/cable.cem \
-            ./example_data/images/cable.png \
-            ./outputs/cable_tcg_cpp.cem
+./build/TCG ./example_data/edges/n03425413_14351.edg \
+            ./example_data/contours/n03425413_14351.cem \
+            ./example_data/images/n03425413_14351.JPEG \
+            ./outputs/n03425413_14351_tcg_cpp.cem
 ```
 Console output reports fragment counts and timings for each stage.
 
