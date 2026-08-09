@@ -11,26 +11,103 @@
 
 #include <chrono>
 #include <cmath>
-#include <cstdlib>
 #include <iostream>
 #include <string>
 
+enum class OutputFormat { Cem, Cemv, Both };
+
 static void print_usage(const char* argv0) {
   std::cerr << "Usage: " << argv0
-            << " <input.edg> <input.cem> <input.image> [ori_diff_th] [output.cem]\n"
+            << " <input.edg> <input.cem> <input.image> [format] [output]\n"
             << "  Runs Step 3 (corner break) through final post-process.\n"
-            << "  ori_diff_th: radians (default: pi/18)\n"
-            << "  output.cem: final contours (.CEM v2.0); default: <image_stem>_tcg_cpp.cem\n";
+            << "  Corner ori_diff_th is fixed at pi/18 (matching main_TCG_CH.m).\n"
+            << "  format: cem | cemv | both   (default: both)\n"
+            << "  output: output path or stem\n"
+            << "    - format=cem:  writes .cem  (default: <image_stem>_tcg_cpp.cem)\n"
+            << "    - format=cemv: writes .cemv (default: <image_stem>_tcg_cpp.cemv)\n"
+            << "    - format=both: writes .cem and sibling .cemv\n"
+            << "                   (default stem: <image_stem>_tcg_cpp;\n"
+            << "                    if output ends in .cem/.cemv, the other is derived)\n"
+            << "  Backward compatible: a 4th arg that is not cem|cemv|both is treated as\n"
+            << "  output path with format=both.\n";
 }
 
-static std::string default_output_cem(const std::string& img_path) {
-  // Derive "<stem>_tcg_cpp.cem" next to the image (or cwd if no slash).
+static std::string image_stem(const std::string& img_path) {
   std::string stem = img_path;
   const auto slash = stem.find_last_of("/\\");
   if (slash != std::string::npos) stem = stem.substr(slash + 1);
   const auto dot = stem.find_last_of('.');
   if (dot != std::string::npos) stem = stem.substr(0, dot);
-  return stem + "_tcg_cpp.cem";
+  return stem;
+}
+
+static bool ends_with_ci(const std::string& s, const std::string& ext) {
+  if (s.size() < ext.size()) return false;
+  for (size_t i = 0; i < ext.size(); ++i) {
+    char a = s[s.size() - ext.size() + i];
+    char b = ext[i];
+    if (a >= 'A' && a <= 'Z') a = static_cast<char>(a - 'A' + 'a');
+    if (b >= 'A' && b <= 'Z') b = static_cast<char>(b - 'A' + 'a');
+    if (a != b) return false;
+  }
+  return true;
+}
+
+static std::string replace_or_append_ext(const std::string& path, const std::string& new_ext) {
+  // new_ext includes leading '.', e.g. ".cem"
+  if (ends_with_ci(path, ".cemv")) return path.substr(0, path.size() - 5) + new_ext;
+  if (ends_with_ci(path, ".cem")) return path.substr(0, path.size() - 4) + new_ext;
+  return path + new_ext;
+}
+
+static bool parse_format(const std::string& s, OutputFormat& out) {
+  if (s == "cem") {
+    out = OutputFormat::Cem;
+    return true;
+  }
+  if (s == "cemv") {
+    out = OutputFormat::Cemv;
+    return true;
+  }
+  if (s == "both") {
+    out = OutputFormat::Both;
+    return true;
+  }
+  return false;
+}
+
+static void resolve_output_paths(OutputFormat format, const std::string& img_path,
+                                 const std::string& output_arg, bool have_output, std::string& out_cem,
+                                 std::string& out_cemv, bool& do_cem, bool& do_cemv) {
+  do_cem = (format == OutputFormat::Cem || format == OutputFormat::Both);
+  do_cemv = (format == OutputFormat::Cemv || format == OutputFormat::Both);
+
+  const std::string stem = image_stem(img_path) + "_tcg_cpp";
+  if (!have_output) {
+    out_cem = stem + ".cem";
+    out_cemv = stem + ".cemv";
+    return;
+  }
+
+  if (format == OutputFormat::Cem) {
+    out_cem = ends_with_ci(output_arg, ".cem") ? output_arg : replace_or_append_ext(output_arg, ".cem");
+    out_cemv.clear();
+  } else if (format == OutputFormat::Cemv) {
+    out_cem.clear();
+    out_cemv = ends_with_ci(output_arg, ".cemv") ? output_arg : replace_or_append_ext(output_arg, ".cemv");
+  } else {
+    // both
+    if (ends_with_ci(output_arg, ".cemv")) {
+      out_cemv = output_arg;
+      out_cem = replace_or_append_ext(output_arg, ".cem");
+    } else if (ends_with_ci(output_arg, ".cem")) {
+      out_cem = output_arg;
+      out_cemv = replace_or_append_ext(output_arg, ".cemv");
+    } else {
+      out_cem = output_arg + ".cem";
+      out_cemv = output_arg + ".cemv";
+    }
+  }
 }
 
 int main(int argc, char** argv) {
@@ -42,8 +119,30 @@ int main(int argc, char** argv) {
   const std::string edg_path = argv[1];
   const std::string cem_path = argv[2];
   const std::string img_path = argv[3];
-  double ori_th = M_PI / 18.0;
-  if (argc >= 5) ori_th = std::strtod(argv[4], nullptr);
+
+  OutputFormat format = OutputFormat::Both;
+  std::string output_arg;
+  bool have_output = false;
+  if (argc >= 5) {
+    if (parse_format(argv[4], format)) {
+      if (argc >= 6) {
+        output_arg = argv[5];
+        have_output = true;
+      }
+    } else {
+      // Backward compatible: 4th arg is output path, format=both.
+      format = OutputFormat::Both;
+      output_arg = argv[4];
+      have_output = true;
+    }
+  }
+
+  std::string out_cem, out_cemv;
+  bool do_cem = false, do_cemv = false;
+  resolve_output_paths(format, img_path, output_arg, have_output, out_cem, out_cemv, do_cem, do_cemv);
+
+  //> This corner orientation threshold is made constant, corresponding to main_TCG_CH.m Step 3
+  const double ori_th = M_PI / 18.0;  
 
   tcg::EdgFile edg;
   tcg::CemFile cem;
@@ -177,14 +276,24 @@ int main(int argc, char** argv) {
             << " / time = " << prune2_time_ms << " ms" << std::endl;
   //>========================== MATLAB prune_noise_curves function (2nd pass) ==========================
 
-  //> Write final contours as .CEM v2.0 (readable by MATLAB load_contours / draw_contours)
-  const std::string out_cem = (argc >= 6) ? argv[5] : default_output_cem(img_path);
-  if (!tcg::write_cem(out_cem, finalp.contours, h, w, err)) {
-    std::cerr << "write_cem: " << err << "\n";
-    return 1;
+  //> Write final contours (format: cem | cemv | both)
+  if (do_cem) {
+    if (!tcg::write_cem(out_cem, finalp.contours, h, w, err)) {
+      std::cerr << "write_cem: " << err << "\n";
+      return 1;
+    }
+    std::cout << "[Write] final contours -> " << out_cem << " (" << finalp.contours.size()
+              << " fragments)" << std::endl;
   }
-  std::cout << "[Write] final contours -> " << out_cem << " (" << finalp.contours.size()
-            << " fragments)" << std::endl;
+  if (do_cemv) {
+    // Port of util/io/det_save_cemv.m / Main_cem2cemv.m
+    if (!tcg::write_cemv(out_cemv, finalp.contours, err)) {
+      std::cerr << "write_cemv: " << err << "\n";
+      return 1;
+    }
+    std::cout << "[Write] final contours (cemv) -> " << out_cemv << " (" << finalp.contours.size()
+              << " fragments)" << std::endl;
+  }
 
   return 0;
 }
