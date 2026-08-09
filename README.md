@@ -33,17 +33,33 @@ mkdir -p build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . -j
 ```
-Once built is successful, provide specific `.edg`, `.cem`, and the original image file with optional threshold `ori_diff` (corner angle threshold in radians used to break long curves) and output file name `output.cem`. By default, the output file name is `<image_name>_tcg_cpp.cem` in the current working directory. 
+Once built is successful, provide specific `.edg`, `.cem`, and the original image file. By default both `.cem` and `.cemv` are written using stem `<image_name>_tcg_cpp`.
 ```bash
-./TCG <input.edg> <input.cem> <input.image> [ori_diff_th] [output.cem]
+./TCG <input.edg> <input.cem> <input.image> [format] [output]
 ```
-Using the files under `example_data`,
+`format` is one of:
+- `cem` — write only `.cem`
+- `cemv` — write only `.cemv`
+- `both` — write both (default)
+
+Examples:
 ```bash
-./build/TCG ./example_data/edges/n03425413_14351.edg \
-            ./example_data/contours/n03425413_14351.cem \
-            ./example_data/images/n03425413_14351.JPEG \
-            ./outputs/n03425413_14351_tcg_cpp.cem
+# both formats (default paths)
+./build/TCG ./example_data/n03425413_14351.edg \
+            ./example_data/n03425413_14351.cem \
+            ./example_data/n03425413_14351.JPEG
+
+# cem only
+./build/TCG ... cem ./outputs/n03425413_14351_tcg_cpp.cem
+
+# cemv only
+./build/TCG ... cemv ./outputs/n03425413_14351_tcg_cpp.cemv
+
+# both with explicit .cem path (sibling .cemv is derived)
+./build/TCG ... both ./outputs/n03425413_14351_tcg_cpp.cem
 ```
+A 4th argument that is not `cem|cemv|both` is still treated as an output path with `format=both` (backward compatible).
+
 Console output reports fragment counts and timings for each stage.
 
 ### Visualize C++ results in MATLAB
