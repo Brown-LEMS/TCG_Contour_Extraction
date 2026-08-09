@@ -49,4 +49,44 @@ bool write_cem(const std::string& path, const std::vector<Contour>& contours, in
   return true;
 }
 
+bool write_cemv(const std::string& path, const std::vector<Contour>& contours, std::string& error) {
+  // Port of det_save_cemv.m (used by Main_cem2cemv.m).
+  std::ofstream out(path);
+  if (!out) {
+    error = "Cannot open for write: " + path;
+    return false;
+  }
+
+  out << "# CONTOUR_EDGE_MAP : Logical-Linear + Shock_Grouping\n";
+  out << "# .cem files\n";
+  out << "#\n";
+  out << "# Format :\n";
+  out << "# Each contour block will consist of the following\n";
+  out << "# [BEGIN CONTOUR]\n";
+  out << "# EDGE_COUNT=num_of_edges\n";
+  out << "# [Pixel_Pos]  Pixel_Dir Pixel_Conf  [Sub_Pixel_Pos] Sub_Pixel_Dir Sub_Pixel_Conf\n";
+  out << "# ...\n";
+  out << "# ...\n";
+  out << "# [END CONTOUR]\n";
+  out << "\n";
+
+  // MATLAB leaves these empty (det_save_cemv.m).
+  out << "CONTOUR_COUNT=\n";
+  out << "TOTAL_EDGE_COUNT=\n";
+
+  out << std::fixed << std::setprecision(6);
+  for (const auto& c : contours) {
+    out << "[BEGIN CONTOUR]\n";
+    out << "EDGE_COUNT=" << c.size() << "\n";
+    for (const auto& e : c) {
+      // Pixel fields unused (zeros); sub-pixel stores x, y, dir, conf.
+      out << " [0, 0] 0.000000 0.000000 [" << e.x << ", " << e.y << "] " << e.dir << " " << e.conf
+          << "\n";
+    }
+    out << "[END CONTOUR]\n\n";
+  }
+
+  return true;
+}
+
 }  // namespace tcg

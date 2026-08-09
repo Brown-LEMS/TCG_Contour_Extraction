@@ -11,4 +11,7 @@ namespace tcg {
 bool write_cem(const std::string& path, const std::vector<Contour>& contours, int h, int w,
                std::string& error);
 
+/// Port of util/io/det_save_cemv.m — writes contour fragments as .cemv for downstream tasks.
+bool write_cemv(const std::string& path, const std::vector<Contour>& contours, std::string& error);
+
 }  // namespace tcg
