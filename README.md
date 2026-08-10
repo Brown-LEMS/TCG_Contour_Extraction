@@ -62,6 +62,14 @@ A 4th argument that is not `cem|cemv|both` is still treated as an output path wi
 
 Console output reports fragment counts and timings for each stage.
 
+### Batch over a folder
+
+To run `TCG` on every image in a directory (each stem needs matching `.edg` and `.cem`):
+```bash
+./run_tcg_batch.sh ./example_data -o ./outputs -f both
+```
+Optional flags: `-b` / path to the `TCG` binary, `--edg-dir`, `--cem-dir`, `-n` (dry-run). See `./run_tcg_batch.sh --help`.
+
 ### Visualize C++ results in MATLAB
 
 The output `.cem` is readable by `load_contours` / `draw_contours`:
