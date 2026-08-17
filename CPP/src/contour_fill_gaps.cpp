@@ -1,12 +1,13 @@
 #include "contour_fill_gaps.hpp"
 #include "dp_gap.hpp"
+#include "matlab_bwmorph.hpp"
+#include "matlab_bwdist.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
-#include <opencv2/ximgproc.hpp>
 #include <unordered_map>
 #include <utility>
 
@@ -33,7 +34,8 @@ double contour_length(const Contour& c) {
 }
 
 cv::Mat morph_clean(const cv::Mat& bin) {
-  // Remove isolated foreground pixels (no 8-neighbors).
+  // MATLAB bwmorph(...,'clean'): remove isolated foreground pixels (no 8-neighbors).
+  // Outside-image neighbors are 0, matching bwlookup.
   cv::Mat out = bin.clone();
   for (int y = 0; y < bin.rows; ++y) {
     for (int x = 0; x < bin.cols; ++x) {
@@ -53,20 +55,7 @@ cv::Mat morph_clean(const cv::Mat& bin) {
   return out;
 }
 
-cv::Mat morph_skel(const cv::Mat& bin) {
-  cv::Mat src = bin.clone();
-  // OpenCV thinning expects 0/255.
-  for (int y = 0; y < src.rows; ++y)
-    for (int x = 0; x < src.cols; ++x)
-      if (src.at<uchar>(y, x)) src.at<uchar>(y, x) = 255;
-  cv::Mat dst;
-  // Guo-Hall is the closer match to MATLAB bwmorph(...,'skel').
-  cv::ximgproc::thinning(src, dst, cv::ximgproc::THINNING_GUOHALL);
-  for (int y = 0; y < dst.rows; ++y)
-    for (int x = 0; x < dst.cols; ++x)
-      dst.at<uchar>(y, x) = dst.at<uchar>(y, x) ? 1 : 0;
-  return dst;
-}
+cv::Mat morph_skel(const cv::Mat& bin) { return morph_skel_matlab(bin); }
 
 bool is_junction_nbhd(const uchar* p /* 3x3 row-major */) {
   // Kovesi numbering mapped to row-major: 0 1 2 / 3 4 5 / 6 7 8
@@ -499,17 +488,16 @@ GapFillResult contour_fill_gaps_DP(const std::vector<Contour>& cfrags_in,
   geometric_completion_pass(G, cfrags, cfrags_idx, edges, EdgeGroupMap, jct_map, end_point_eid_map,
                             end_point_vid_map, h, w, search_nbr_range, search_ori_range, GeomPass::First);
 
-  // DT_map = exp(-bwdist.^2 / 8)
-  cv::Mat bin255 = cv::Mat::zeros(h, w, CV_8UC1);
+  // MATLAB: DT_map = exp(-bwdist(EdgeGroupMap>0,'euclidean').^2 / 8)
+  cv::Mat feature = cv::Mat::zeros(h, w, CV_8UC1);
   for (int y = 0; y < h; ++y)
     for (int x = 0; x < w; ++x)
-      if (EdgeGroupMap[idx2(y, x, w)]) bin255.at<uchar>(y, x) = 255;
-  cv::Mat dt;
-  cv::distanceTransform(bin255, dt, cv::DIST_L2, cv::DIST_MASK_PRECISE);
+      if (EdgeGroupMap[idx2(y, x, w)]) feature.at<uchar>(y, x) = 1;
+  cv::Mat dt = bwdist_euclidean(feature);
   std::vector<double> DT_map(static_cast<size_t>(h) * static_cast<size_t>(w), 0.0);
   for (int y = 0; y < h; ++y) {
     for (int x = 0; x < w; ++x) {
-      const double d = dt.at<float>(y, x);
+      const double d = static_cast<double>(dt.at<float>(y, x));
       DT_map[idx2(y, x, w)] = std::exp(-(d * d) / 8.0);
     }
   }
