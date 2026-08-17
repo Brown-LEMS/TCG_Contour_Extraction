@@ -23,7 +23,7 @@ The C++ code converts the MATLAB code in `main_TCG.m` (Step 3 and onward). It ta
 
 - CMake ≥ 3.14
 - C++17 compiler
-- OpenCV 4 and above built with `contib` modules
+- OpenCV 4 and above (`core`, `imgproc`, `imgcodecs`)
 
 ### Build
 Follow the standard build and compile process to produce the executable `TCG`.
@@ -86,5 +86,5 @@ title('C++ final contours');
 ### Notes / known differences
 
 - "Corner break" (step 3) matches MATLAB closely on tested examples, _e.g._ fragment/corner counts.
-- "Gap fill" (step 4) differ slightly from MATLAB because morphological skeleton (`bwmorph('skel')` used in MATLAB versus OpenCV Guo–Hall thinning), distance transform, and `imgradient` / Sobel are not bit-identical. Later stages inherit that discrepancy.
+- "Gap fill" (step 4) uses MATLAB-faithful `bwmorph(...,'skel',Inf)`, `bwdist` (exact Euclidean EDT), and `imgradient`/`rgb2gray` (Sobel + replicate borders). On the example image, stage fragment counts match MATLAB; tiny residual map differences can still come from OpenCV vs MATLAB JPEG decoding.
 - Indices inside C++ are 0-based and `.cem` files keep the usual 0-based edge IDs. MATLAB loaders convert to 1-based when needed.
