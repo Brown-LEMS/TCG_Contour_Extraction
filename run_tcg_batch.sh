@@ -1,24 +1,37 @@
 #!/usr/bin/env bash
-# Run the TCG executable over all .JPEG images under a folder (recursively).
+# Run the TCG executable over all images under a folder (recursively).
 #
-# Expects each image stem to have matching <stem>.edg and <stem>.cem (or
-# <stem>_se_tcg.cem) in the same folder as the image (or in --edg-dir /
-# --cem-dir if provided).
+# Image, .edg, and .cem roots are specified separately. Matching uses the
+# image's relative subdirectory plus a filename pattern where '*' is the
+# image stem (needed when multiple .edg/.cem variants exist per image).
 #
 # Usage:
-#   ./run_tcg_batch.sh <image_dir> [options]
+#   ./run_tcg_batch.sh --image-dir DIR --edg-dir DIR --cem-dir DIR [options]
+#   ./run_tcg_batch.sh <image_dir> <edg_dir> <cem_dir> [options]
 #
-# Example (imagenette class folders):
-#   ./run_tcg_batch.sh /gpfs/data/bkimia/imagenette/images/
+# Example (imagenette class folders, TO edges + dborl contours):
+#   ./run_tcg_batch.sh \
+#     --image-dir .../imagenette/images \
+#     --edg-dir   .../imagenette/edges \
+#     --cem-dir   .../imagenette/contours \
+#     --edg-name '*_to.edg' --cem-name '*_to_dborl.cem' \
+#     -e JPEG -o .../out
 #
 # Options:
+#   -i, --image-dir DIR    Root directory of input images (required)
+#       --edg-dir DIR      Root directory of .edg files (required)
+#       --cem-dir DIR      Root directory of .cem files (required)
 #   -o, --output-dir DIR   Output directory (default: <image_dir>/tcg_cpp_out)
 #                          Mirrors the image subdirectory layout.
+#   -e, --ext EXT          Image extension to match, case-sensitive
+#                          (default: JPEG; leading '.' optional)
+#       --edg-name PAT     Edge filename pattern; '*' = image stem
+#                          (default: '*.edg', e.g. '*_to.edg')
+#       --cem-name PAT     Contour filename pattern; '*' = image stem
+#                          (default: '*.cem', e.g. '*_to_dborl.cem')
 #   -f, --format FMT       cem | cemv | both (default: both)
 #   -b, --binary PATH      Path to TCG executable
 #                          (default: <repo>/CPP/build/TCG)
-#       --edg-dir DIR      Directory for .edg files (default: each image's dir)
-#       --cem-dir DIR      Directory for .cem files (default: each image's dir)
 #   -n, --dry-run          Print commands without running them
 #   -h, --help             Show this help
 
@@ -26,30 +39,49 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_BINARY="${SCRIPT_DIR}/CPP/build/TCG"
-
-# Only process this extension (case-sensitive for the imagenette dataset)
-IMAGE_EXT="JPEG"
+DEFAULT_IMAGE_EXT="JPEG"
+DEFAULT_EDG_NAME="*.edg"
+DEFAULT_CEM_NAME="*.cem"
 
 verbose_usage() {
   cat <<'EOF'
-Run the TCG executable over all .JPEG images under a folder (recursively).
+Run the TCG executable over all images under a folder (recursively).
 
-Expects each image stem to have matching .edg and .cem (or _se_tcg.cem) files
-in the same folder as the image (or in --edg-dir / --cem-dir if provided).
+Image, .edg, and .cem roots are specified separately. For an image at
+  <image_dir>/<rel>/<stem>.EXT
+the script looks for
+  <edg_dir>/<rel>/<edg-name with * replaced by stem>
+  <cem_dir>/<rel>/<cem-name with * replaced by stem>
+and writes outputs under
+  <output_dir>/<rel>/<stem>_tcg_cpp.{cem,cemv}
 
 Usage:
-  ./run_tcg_batch.sh <image_dir> [options]
+  ./run_tcg_batch.sh --image-dir DIR --edg-dir DIR --cem-dir DIR [options]
+  ./run_tcg_batch.sh <image_dir> <edg_dir> <cem_dir> [options]
 
 Example:
-  ./run_tcg_batch.sh /gpfs/data/bkimia/imagenette/images/
+  ./run_tcg_batch.sh \
+    --image-dir /path/to/images \
+    --edg-dir   /path/to/edges \
+    --cem-dir   /path/to/contours \
+    --edg-name '*_to.edg' \
+    --cem-name '*_to_dborl.cem' \
+    -e JPEG -o /path/to/out
 
 Options:
-  -o, --output-dir DIR   Output directory          (default: <image_dir>/tcg_cpp_out)
+  -i, --image-dir DIR    Root directory of input images   (required)
+      --edg-dir DIR      Root directory of .edg files     (required)
+      --cem-dir DIR      Root directory of .cem files     (required)
+  -o, --output-dir DIR   Output directory                 (default: <cem-dir>/tcg_cpp_out)
                          Mirrors the image subdirectory layout.
-  -f, --format FMT       cem | cemv | both         (default: both)
-  -b, --binary PATH      Path to TCG executable    (default: <repo>/CPP/build/TCG)
-      --edg-dir DIR      Directory for .edg files  (default: each image dir)
-      --cem-dir DIR      Directory for .cem files  (default: each image dir)
+  -e, --ext EXT          Image extension to match         (default: JPEG; case-sensitive;
+                         leading '.' optional, e.g. JPEG or .jpg)
+      --edg-name PAT     Edge filename pattern; '*' = stem
+                         (default: '*.edg', e.g. '*_to.edg' or '*_se.edg')
+      --cem-name PAT     Contour filename pattern; '*' = stem
+                         (default: '*.cem', e.g. '*_to_dborl.cem' or '*_se_tcg.cem')
+  -f, --format FMT       cem | cemv | both                (default: both)
+  -b, --binary PATH      Path to TCG executable           (default: <repo>/CPP/build/TCG)
   -n, --dry-run          Print commands without running them
   -h, --help             Show this help
 EOF
@@ -60,40 +92,52 @@ die() {
   exit 1
 }
 
-# Resolve input .cem for a stem: prefer <stem>.cem if present
-resolve_cem() {
-  local cem_dir="$1"
+require_dir() {
+  local label="$1"
+  local dir="$2"
+  [[ -n "${dir}" ]] || die "${label} is required"
+  [[ -d "${dir}" ]] || die "${label} not found: ${dir}"
+  (cd "${dir}" && pwd)
+}
+
+# Validate a '*'-stem filename pattern and optionally check its extension.
+validate_name_pattern() {
+  local label="$1"
+  local pat="$2"
+  local expect_ext="$3" # e.g. .edg or .cem
+
+  [[ -n "${pat}" ]] || die "${label} must not be empty"
+  [[ "${pat}" == *"/"* ]] && die "${label} must be a filename pattern, not a path: ${pat}"
+  [[ "${pat}" == *"*"* ]] || die "${label} must contain '*' for the image stem (got: ${pat})"
+  local stars="${pat//[^*]/}"
+  [[ "${#stars}" -eq 1 ]] || die "${label} must contain exactly one '*' (got: ${pat})"
+  [[ "${pat}" == *"${expect_ext}" ]] || die "${label} must end with ${expect_ext} (got: ${pat})"
+}
+
+# Replace the single '*' in pattern with stem.
+expand_name_pattern() {
+  local pat="$1"
   local stem="$2"
-  if [[ -f "${cem_dir}/${stem}.cem" ]]; then
-    echo "${cem_dir}/${stem}.cem"
-  else
-    echo ""
-  fi
+  echo "${pat/\*/${stem}}"
 }
 
 IMAGE_DIR=""
-OUTPUT_DIR=""
-FORMAT="both"
-BINARY="${DEFAULT_BINARY}"
 EDG_DIR=""
 CEM_DIR=""
+OUTPUT_DIR=""
+IMAGE_EXT="${DEFAULT_IMAGE_EXT}"
+EDG_NAME="${DEFAULT_EDG_NAME}"
+CEM_NAME="${DEFAULT_CEM_NAME}"
+FORMAT="both"
+BINARY="${DEFAULT_BINARY}"
 DRY_RUN=0
+POSITIONAL=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    -o|--output-dir)
+    -i|--image-dir)
       [[ $# -ge 2 ]] || die "$1 requires an argument"
-      OUTPUT_DIR="$2"
-      shift 2
-      ;;
-    -f|--format)
-      [[ $# -ge 2 ]] || die "$1 requires an argument"
-      FORMAT="$2"
-      shift 2
-      ;;
-    -b|--binary)
-      [[ $# -ge 2 ]] || die "$1 requires an argument"
-      BINARY="$2"
+      IMAGE_DIR="$2"
       shift 2
       ;;
     --edg-dir)
@@ -104,6 +148,36 @@ while [[ $# -gt 0 ]]; do
     --cem-dir)
       [[ $# -ge 2 ]] || die "$1 requires an argument"
       CEM_DIR="$2"
+      shift 2
+      ;;
+    -o|--output-dir)
+      [[ $# -ge 2 ]] || die "$1 requires an argument"
+      OUTPUT_DIR="$2"
+      shift 2
+      ;;
+    -e|--ext)
+      [[ $# -ge 2 ]] || die "$1 requires an argument"
+      IMAGE_EXT="$2"
+      shift 2
+      ;;
+    --edg-name)
+      [[ $# -ge 2 ]] || die "$1 requires an argument"
+      EDG_NAME="$2"
+      shift 2
+      ;;
+    --cem-name)
+      [[ $# -ge 2 ]] || die "$1 requires an argument"
+      CEM_NAME="$2"
+      shift 2
+      ;;
+    -f|--format)
+      [[ $# -ge 2 ]] || die "$1 requires an argument"
+      FORMAT="$2"
+      shift 2
+      ;;
+    -b|--binary)
+      [[ $# -ge 2 ]] || die "$1 requires an argument"
+      BINARY="$2"
       shift 2
       ;;
     -n|--dry-run)
@@ -118,29 +192,45 @@ while [[ $# -gt 0 ]]; do
       die "unknown option: $1"
       ;;
     *)
-      if [[ -z "${IMAGE_DIR}" ]]; then
-        IMAGE_DIR="$1"
-      else
-        die "unexpected argument: $1"
-      fi
+      POSITIONAL+=("$1")
       shift
       ;;
   esac
 done
 
-[[ -n "${IMAGE_DIR}" ]] || { verbose_usage; die "image directory is required"; }
-[[ -d "${IMAGE_DIR}" ]] || die "image directory not found: ${IMAGE_DIR}"
+# Allow: ./run_tcg_batch.sh <image_dir> <edg_dir> <cem_dir> ...
+if [[ ${#POSITIONAL[@]} -gt 0 ]]; then
+  if [[ -z "${IMAGE_DIR}" && ${#POSITIONAL[@]} -ge 1 ]]; then
+    IMAGE_DIR="${POSITIONAL[0]}"
+    POSITIONAL=("${POSITIONAL[@]:1}")
+  fi
+  if [[ -z "${EDG_DIR}" && ${#POSITIONAL[@]} -ge 1 ]]; then
+    EDG_DIR="${POSITIONAL[0]}"
+    POSITIONAL=("${POSITIONAL[@]:1}")
+  fi
+  if [[ -z "${CEM_DIR}" && ${#POSITIONAL[@]} -ge 1 ]]; then
+    CEM_DIR="${POSITIONAL[0]}"
+    POSITIONAL=("${POSITIONAL[@]:1}")
+  fi
+fi
+[[ ${#POSITIONAL[@]} -eq 0 ]] || die "unexpected argument: ${POSITIONAL[0]}"
 
-IMAGE_DIR="$(cd "${IMAGE_DIR}" && pwd)"
-if [[ -n "${EDG_DIR}" ]]; then
-  [[ -d "${EDG_DIR}" ]] || die "edg directory not found: ${EDG_DIR}"
-  EDG_DIR="$(cd "${EDG_DIR}" && pwd)"
+if [[ -z "${IMAGE_DIR}" || -z "${EDG_DIR}" || -z "${CEM_DIR}" ]]; then
+  verbose_usage
+  die "--image-dir, --edg-dir, and --cem-dir are all required (or pass them as three positional args)"
 fi
-if [[ -n "${CEM_DIR}" ]]; then
-  [[ -d "${CEM_DIR}" ]] || die "cem directory not found: ${CEM_DIR}"
-  CEM_DIR="$(cd "${CEM_DIR}" && pwd)"
-fi
-OUTPUT_DIR="${OUTPUT_DIR:-${IMAGE_DIR}/tcg_cpp_out}"
+
+# Allow "-e .JPEG" or "-e JPEG"; matching remains case-sensitive.
+IMAGE_EXT="${IMAGE_EXT#.}"
+[[ -n "${IMAGE_EXT}" ]] || die "image extension (-e/--ext) must not be empty"
+
+validate_name_pattern "--edg-name" "${EDG_NAME}" ".edg"
+validate_name_pattern "--cem-name" "${CEM_NAME}" ".cem"
+
+IMAGE_DIR="$(require_dir "image directory" "${IMAGE_DIR}")"
+EDG_DIR="$(require_dir "edg directory" "${EDG_DIR}")"
+CEM_DIR="$(require_dir "cem directory" "${CEM_DIR}")"
+OUTPUT_DIR="${OUTPUT_DIR:-${CEM_DIR}/tcg_cpp_out}"
 
 case "${FORMAT}" in
   cem|cemv|both) ;;
@@ -156,7 +246,7 @@ fi
 mkdir -p "${OUTPUT_DIR}"
 OUTPUT_DIR="$(cd "${OUTPUT_DIR}" && pwd)"
 
-# Recursively collect only .JPEG files under IMAGE_DIR (all sub-folders).
+# Recursively collect images with the requested extension under IMAGE_DIR.
 mapfile -d '' images < <(find "${IMAGE_DIR}" -type f -name "*.${IMAGE_EXT}" -print0 | sort -z)
 
 if [[ ${#images[@]} -eq 0 ]]; then
@@ -165,11 +255,13 @@ fi
 
 echo "TCG binary : ${BINARY}"
 echo "Image dir  : ${IMAGE_DIR}"
-echo "Edg dir    : ${EDG_DIR:-<per-image directory>}"
-echo "Cem dir    : ${CEM_DIR:-<per-image directory>}"
+echo "Edg dir    : ${EDG_DIR}"
+echo "Cem dir    : ${CEM_DIR}"
 echo "Output dir : ${OUTPUT_DIR}"
 echo "Format     : ${FORMAT}"
 echo "Extension  : .${IMAGE_EXT} only"
+echo "Edg name   : ${EDG_NAME}  (* = image stem)"
+echo "Cem name   : ${CEM_NAME}  (* = image stem)"
 echo "Images     : ${#images[@]}"
 echo
 
@@ -183,20 +275,24 @@ for img in "${images[@]}"; do
 
   base="$(basename "${img}")"
   stem="${base%.*}"
-  img_dir="$(cd "$(dirname "${img}")" && pwd)"
-  edg_dir="${EDG_DIR:-${img_dir}}"
-  cem_dir="${CEM_DIR:-${img_dir}}"
-  edg="${edg_dir}/${stem}.edg"
-  cem="$(resolve_cem "${cem_dir}" "${stem}")"
 
-  # Mirror subdirectory layout under OUTPUT_DIR when images live in subfolders.
+  # Mirror subdirectory layout across edg/cem/output roots.
   rel="${img#${IMAGE_DIR}/}"
   rel_dir="$(dirname "${rel}")"
   if [[ "${rel_dir}" == "." ]]; then
+    edg_subdir="${EDG_DIR}"
+    cem_subdir="${CEM_DIR}"
     out_subdir="${OUTPUT_DIR}"
   else
+    edg_subdir="${EDG_DIR}/${rel_dir}"
+    cem_subdir="${CEM_DIR}/${rel_dir}"
     out_subdir="${OUTPUT_DIR}/${rel_dir}"
   fi
+
+  edg_base="$(expand_name_pattern "${EDG_NAME}" "${stem}")"
+  cem_base="$(expand_name_pattern "${CEM_NAME}" "${stem}")"
+  edg="${edg_subdir}/${edg_base}"
+  cem="${cem_subdir}/${cem_base}"
   mkdir -p "${out_subdir}"
   out_stem="${out_subdir}/${stem}_tcg_cpp"
 
@@ -205,8 +301,8 @@ for img in "${images[@]}"; do
     skip=$((skip + 1))
     continue
   fi
-  if [[ -z "${cem}" ]]; then
-    echo "[SKIP] ${rel}: missing ${cem_dir}/${stem}.cem (or ${stem}_se_tcg.cem)"
+  if [[ ! -f "${cem}" ]]; then
+    echo "[SKIP] ${rel}: missing ${cem}"
     skip=$((skip + 1))
     continue
   fi
@@ -235,5 +331,5 @@ for img in "${images[@]}"; do
   echo
 done
 
-echo "Done. ok=${ok} skip=${skip} fail=${fail}"
+printf 'Done. ok=%d skip=%d fail=%d\n' "${ok}" "${skip}" "${fail}"
 [[ "${fail}" -eq 0 ]]

@@ -64,11 +64,20 @@ Console output reports fragment counts and timings for each stage.
 
 ### Batch over a folder
 
-To run `TCG` on every image in a directory (each stem needs matching `.edg` and `.cem`):
+`run_tcg_batch.sh` walks an image root recursively and runs `TCG` on each image. Image, `.edg`, and `.cem` roots are specified separately; class subfolders are mirrored across those roots and under the output directory. Filename patterns use `*` for the image stem (needed when multiple `.edg` / `.cem` variants exist per image).
+
 ```bash
-./run_tcg_batch.sh ./example_data -o ./outputs -f both
+./run_tcg_batch.sh \
+  --image-dir /path/to/images \
+  --edg-dir   /path/to/edges \
+  --cem-dir   /path/to/contours \
+  --edg-name '*_to.edg' \
+  --cem-name '*_to_dborl.cem' \
+  -e JPEG -o /path/to/out -f both
 ```
-Optional flags: `-b` / path to the `TCG` binary, `--edg-dir`, `--cem-dir`, `-n` (dry-run). See `./run_tcg_batch.sh --help`.
+
+The three roots can also be passed positionally: `./run_tcg_batch.sh <image_dir> <edg_dir> <cem_dir> [options]`.
+Other useful flags: `-e` / `--ext` (image extension, default `JPEG`), `-b` (path to the `TCG` binary), `-n` (dry-run). See all the input argements by running `./run_tcg_batch.sh --help`.
 
 ### Visualize C++ results in MATLAB
 
