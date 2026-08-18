@@ -34,8 +34,8 @@ fprintf('Prune Length Thresh: %d\n', prune_len_thresh);
 
 % Load in Curve Fragment Files
 fprintf('Loading contour maps...\n');
-fprintf([GT_map_path '\n']);
-fprintf([CP_map_path '\n']);
+fprintf([char(GT_map_path) '\n']);
+fprintf([char(CP_map_path) '\n']);
 % CEM_1=load_contours('../2018_s1.cem');
 % CEM_2=load_contours('../2018.cem');
 if(~isempty(strfind(GT_map_path, '.cem')))
