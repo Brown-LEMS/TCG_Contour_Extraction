@@ -92,8 +92,10 @@ draw_contours(CEM_cpp{2}, 0, 1);
 title('C++ final contours');
 ```
 
+### Comparing Contour Fragments by Evaluation
+Two sets of contour fragments (or contour maps) can be compared by using the provided evaluation code. Check the [evaluation document](https://github.com/Brown-LEMS/TCG_Contour_Extraction/blob/main/Eval/Eval_Curve_Fragment.md) for more information.
+
 ### Notes / known differences
 
-- "Corner break" (step 3) matches MATLAB closely on tested examples, _e.g._ fragment/corner counts.
 - "Gap fill" (step 4) uses MATLAB-faithful `bwmorph(...,'skel',Inf)`, `bwdist` (exact Euclidean EDT), and `imgradient`/`rgb2gray` (Sobel + replicate borders). On the example image, stage fragment counts match MATLAB; tiny residual map differences can still come from OpenCV vs MATLAB JPEG decoding.
 - Indices inside C++ are 0-based and `.cem` files keep the usual 0-based edge IDs. MATLAB loaders convert to 1-based when needed.
