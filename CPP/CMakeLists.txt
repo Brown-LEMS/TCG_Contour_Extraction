@@ -24,26 +24,19 @@ add_executable(TCG
   src/write_cem.cpp
 )
 
-add_executable(test_matlab_skel
-  tools/test_matlab_skel.cpp
-  src/matlab_bwmorph.cpp
-)
-target_include_directories(test_matlab_skel PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include" ${OpenCV_INCLUDE_DIRS})
-target_link_libraries(test_matlab_skel PRIVATE ${OpenCV_LIBS})
+#add_executable(test_matlab_skel tools/test_matlab_skel.cpp src/matlab_bwmorph.cpp)
+#target_include_directories(test_matlab_skel PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include" ${OpenCV_INCLUDE_DIRS})
+#target_link_libraries(test_matlab_skel PRIVATE ${OpenCV_LIBS})
 
-add_executable(test_matlab_grad_bwdist
-  tools/test_matlab_grad_bwdist.cpp
-  src/matlab_bwdist.cpp
-  src/image_gradient.cpp
-)
-target_include_directories(test_matlab_grad_bwdist PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include" ${OpenCV_INCLUDE_DIRS})
-target_link_libraries(test_matlab_grad_bwdist PRIVATE ${OpenCV_LIBS})
+# add_executable(test_matlab_grad_bwdist tools/test_matlab_grad_bwdist.cpp src/matlab_bwdist.cpp src/image_gradient.cpp)
+# target_include_directories(test_matlab_grad_bwdist PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include" ${OpenCV_INCLUDE_DIRS})
+# target_link_libraries(test_matlab_grad_bwdist PRIVATE ${OpenCV_LIBS})
 
 target_include_directories(TCG PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include" ${OpenCV_INCLUDE_DIRS})
 target_link_libraries(TCG PRIVATE ${OpenCV_LIBS})
 
 if(MSVC)
-  target_compile_definitions(TCG PRIVATE _USE_MATH_DEFINES)
+    target_compile_definitions(TCG PRIVATE _USE_MATH_DEFINES)
 else()
-  target_compile_definitions(TCG PRIVATE _DEFAULT_SOURCE)
+    target_compile_definitions(TCG PRIVATE _DEFAULT_SOURCE)
 endif()
