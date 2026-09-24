@@ -23,6 +23,7 @@ add_executable(TCG
   src/merge_geom.cpp
   src/classify_bp.cpp
   src/write_cem.cpp
+  src/write_jct.cpp
 )
 
 #add_executable(test_matlab_skel tools/test_matlab_skel.cpp src/matlab_bwmorph.cpp)

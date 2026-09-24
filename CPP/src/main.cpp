@@ -8,10 +8,17 @@
 #include "merge_geom.hpp"
 #include "prune_noise.hpp"
 #include "write_cem.hpp"
+#include "write_jct.hpp"
 
 #include <chrono>
+#include <cmath>
 #include <iostream>
 #include <string>
+#include <vector>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 enum class OutputFormat { Cem, Cemv, Both };
 
@@ -29,9 +36,25 @@ static void print_usage(const char* argv0) {
               << "                   (default stem: <image_stem>_tcg_cpp;\n"
               << "                    if output ends in .cem/.cemv, the other is "
                  "derived)\n"
+              << "  Always also writes a sibling .jct (T- and Y-junctions).\n"
               << "  Backward compatible: a 4th arg that is not cem|cemv|both is "
                  "treated as\n"
               << "  output path with format=both.\n";
+}
+
+/// Degree >= 3 nodes in the factor graph (Y / multi-way junctions).
+static std::vector<tcg::Edge> extract_Y_junctions(const tcg::FacGraph& G,
+                                                  const std::vector<tcg::Edge>& edges) {
+    std::vector<tcg::Edge> out;
+    for (const auto& var : G.vars) {
+        if (var.nbrs_fac.size() < 3)
+            continue;
+        const int eid = var.actual_edge_id;
+        if (eid < 0 || static_cast<size_t>(eid) >= edges.size())
+            continue;
+        out.push_back(edges[static_cast<size_t>(eid)]);
+    }
+    return out;
 }
 
 static std::string image_stem(const std::string& img_path) {
@@ -88,8 +111,8 @@ static bool parse_format(const std::string& s, OutputFormat& out) {
 
 static void resolve_output_paths(OutputFormat format, const std::string& img_path,
                                  const std::string& output_arg, bool have_output,
-                                 std::string& out_cem, std::string& out_cemv, bool& do_cem,
-                                 bool& do_cemv) {
+                                 std::string& out_cem, std::string& out_cemv, std::string& out_jct,
+                                 bool& do_cem, bool& do_cemv) {
     do_cem = (format == OutputFormat::Cem || format == OutputFormat::Both);
     do_cemv = (format == OutputFormat::Cemv || format == OutputFormat::Both);
 
@@ -97,6 +120,7 @@ static void resolve_output_paths(OutputFormat format, const std::string& img_pat
     if (!have_output) {
         out_cem = stem + ".cem";
         out_cemv = stem + ".cemv";
+        out_jct = stem + ".jct";
         return;
     }
 
@@ -104,10 +128,12 @@ static void resolve_output_paths(OutputFormat format, const std::string& img_pat
         out_cem = ends_with_ci(output_arg, ".cem") ? output_arg
                                                    : replace_or_append_ext(output_arg, ".cem");
         out_cemv.clear();
+        out_jct = replace_or_append_ext(out_cem, ".jct");
     } else if (format == OutputFormat::Cemv) {
         out_cem.clear();
         out_cemv = ends_with_ci(output_arg, ".cemv") ? output_arg
                                                      : replace_or_append_ext(output_arg, ".cemv");
+        out_jct = replace_or_append_ext(out_cemv, ".jct");
     } else {
         // both
         if (ends_with_ci(output_arg, ".cemv")) {
@@ -120,6 +146,7 @@ static void resolve_output_paths(OutputFormat format, const std::string& img_pat
             out_cem = output_arg + ".cem";
             out_cemv = output_arg + ".cemv";
         }
+        out_jct = replace_or_append_ext(out_cem.empty() ? out_cemv : out_cem, ".jct");
     }
 }
 
@@ -150,10 +177,10 @@ int main(int argc, char** argv) {
         }
     }
 
-    std::string out_cem, out_cemv;
+    std::string out_cem, out_cemv, out_jct;
     bool do_cem = false, do_cemv = false;
-    resolve_output_paths(format, img_path, output_arg, have_output, out_cem, out_cemv, do_cem,
-                         do_cemv);
+    resolve_output_paths(format, img_path, output_arg, have_output, out_cem, out_cemv, out_jct,
+                         do_cem, do_cemv);
 
     //> This corner orientation threshold is made constant, corresponding to
     // main_TCG_CH.m Step 3
@@ -300,7 +327,15 @@ int main(int argc, char** argv) {
               << " / time = " << prune2_time_ms << " ms" << std::endl;
     //>============== MATLAB prune_noise_curves function (2nd pass) ==============
 
-    //> Write final contours (format: cem | cemv | both)
+    // T-junctions from classify-BP; Y-junctions = degree>=3 nodes on the final graph
+    // (aligned with written contours). Note: T points are from an intermediate stage.
+    const std::vector<tcg::Edge>& T_junctions = classified.T_junctions;
+    tcg::FacGraph G_final = tcg::construct_fac_graph(finalp.contour_edge_idx);
+    std::vector<tcg::Edge> Y_junctions = extract_Y_junctions(G_final, tbroken.edges);
+    std::cout << "[Junctions] T = " << T_junctions.size() << " / Y = " << Y_junctions.size()
+              << std::endl;
+
+    //> Write final contours (format: cem | cemv | both) and junctions (.jct)
     if (do_cem) {
         if (!tcg::write_cem(out_cem, finalp.contours, h, w, err)) {
             std::cerr << "write_cem: " << err << "\n";
@@ -318,6 +353,12 @@ int main(int argc, char** argv) {
         std::cout << "[Write] final contours (cemv) -> " << out_cemv << " ("
                   << finalp.contours.size() << " fragments)" << std::endl;
     }
+    if (!tcg::write_jct(out_jct, T_junctions, Y_junctions, h, w, err)) {
+        std::cerr << "write_jct: " << err << "\n";
+        return 1;
+    }
+    std::cout << "[Write] junctions -> " << out_jct << " (T=" << T_junctions.size()
+              << ", Y=" << Y_junctions.size() << ")" << std::endl;
 
     return 0;
 }

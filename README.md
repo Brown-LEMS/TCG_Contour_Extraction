@@ -33,7 +33,7 @@ mkdir -p build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . -j
 ```
-Once built is successful, provide specific `.edg`, `.cem`, and the original image file. By default both `.cem` and `.cemv` are written using stem `<image_name>_tcg_cpp`.
+By default both `.cem` and `.cemv` are written as `<image_name>_tcg_cpp`, plus a sibling `.jct` where T- and Y-junction coordinates are stored.
 ```bash
 ./TCG <input.edg> <input.cem> <input.image> [format] [output]
 ```
@@ -81,7 +81,10 @@ Other useful flags: `-e` / `--ext` (image extension, default `JPEG`), `-b` (path
 
 ### Visualize C++ results in MATLAB
 
-The output `.cem` is readable by `load_contours` / `draw_contours`:
+Contours + junctions: edit paths in `visualize_tcg_contours_junctions.m` and run it.
+It loads `.cem` and the sibling `.jct` (T = green circles, Y = red squares).
+
+Contours only:
 ```matlab
 addpath(genpath('util'));
 img = imread('../example_data/images/cable.png');
@@ -91,6 +94,10 @@ figure; imshow(img, 'border', 'tight'); hold on;
 draw_contours(CEM_cpp{2}, 0, 1);
 title('C++ final contours');
 ```
+
+Junction semantics in `.jct`:
+- T-junctions: degree-3 nodes where classify-BP merged two co-circular branches.
+- Y-junctions: remaining degree ≥ 3 nodes on the *final* contour graph, _i.e._, true multi-way junctions. The pipeline does not run a separate named “Y detector”; Y are the branching nodes that were not treated as T.
 
 ### Comparing Contour Fragments by Evaluation
 Two sets of contour fragments (or contour maps) can be compared by using the provided evaluation code. Check the [evaluation document](https://github.com/Brown-LEMS/TCG_Contour_Extraction/blob/main/Eval/Eval_Curve_Fragment.md) for more information.
