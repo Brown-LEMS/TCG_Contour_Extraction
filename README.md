@@ -45,22 +45,25 @@ By default both `.cem` and `.cemv` are written as `<image_name>_tcg_cpp`, plus a
 Examples:
 ```bash
 # both formats (default paths)
-./build/TCG ./example_data/n03425413_14351.edg \
-            ./example_data/n03425413_14351.cem \
-            ./example_data/n03425413_14351.JPEG
+./build/TCG ../example_data/n03425413_14351.edg \
+            ../example_data/n03425413_14351.cem \
+            ../example_data/n03425413_14351.JPEG
 
 # cem only
-./build/TCG ... cem ./outputs/n03425413_14351_tcg_cpp.cem
+./build/TCG ... cem ../outputs/n03425413_14351_tcg_cpp.cem
 
 # cemv only
-./build/TCG ... cemv ./outputs/n03425413_14351_tcg_cpp.cemv
+./build/TCG ... cemv ../outputs/n03425413_14351_tcg_cpp.cemv
 
 # both with explicit .cem path (sibling .cemv is derived)
-./build/TCG ... both ./outputs/n03425413_14351_tcg_cpp.cem
+./build/TCG ... both ../outputs/n03425413_14351_tcg_cpp.cem
 ```
 A 4th argument that is not `cem|cemv|both` is still treated as an output path with `format=both` (backward compatible).
 
 Console output reports fragment counts and timings for each stage.
+
+### Parameter Control
+All parameters used in the TCG code is packed in `tcg_params.hpp`. They are defined during compile-time. Currently, only CPP code has the collection of all parameters, while the MATLAB code contains hard-coded parameters. Default values of all parameters from the CPP code match the ones from the MATLAB code.
 
 ### Batch over a folder
 
