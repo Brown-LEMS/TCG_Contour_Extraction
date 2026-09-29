@@ -1,4 +1,5 @@
 #include "contour_breaker.hpp"
+#include "tcg_params.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -26,7 +27,7 @@ double contour_length(const Contour& c) {
 std::vector<double> smooth_moving_default(const std::vector<double>& y) {
   int n = static_cast<int>(y.size());
   if (n == 0) return y;
-  int span = 5;
+  int span = kTcgParams.corner_smooth_span;
   if (span % 2 == 0) --span;
   if (span < 1) span = 1;
   if (span > n) {
@@ -139,7 +140,7 @@ CornerBreakResult contour_breaker_at_corner(const std::vector<Contour>& cfrags_i
   if (ori_diff_th < 0) ori_diff_th = params.corner_angle_th;
 
   const int nbr_num_edges = params.nbr_num_edges;
-  const int iter = 1;
+  const int iter = kTcgParams.corner_break_iters;
 
   std::vector<Contour> new_cfrags = cfrags_in;
   std::vector<ContourEdgeIndices> new_cfrags_idx = cfrags_idx_in;
@@ -151,7 +152,9 @@ CornerBreakResult contour_breaker_at_corner(const std::vector<Contour>& cfrags_i
 
     double c_len = contour_length(cur_c);
 
-    if (!cur_c.empty() && c_len < (2 * nbr_num_edges) && rows_all_equal_5(cur_c.front(), cur_c.back())) {
+    if (!cur_c.empty() &&
+        c_len < (kTcgParams.corner_closed_len_factor * nbr_num_edges) &&
+        rows_all_equal_5(cur_c.front(), cur_c.back())) {
       ++i;
       continue;
     }
@@ -159,7 +162,8 @@ CornerBreakResult contour_breaker_at_corner(const std::vector<Contour>& cfrags_i
     bool split_done = false;
     if (c_len > nbr_num_edges && static_cast<int>(cur_c.size()) > nbr_num_edges) {
       double cur_nbr_num =
-          std::min(std::ceil(nbr_num_edges / 2.0), std::ceil(static_cast<double>(cur_c.size()) / 6.0)) /
+          std::min(std::ceil(static_cast<double>(nbr_num_edges) / kTcgParams.corner_nbr_divisor),
+                   std::ceil(static_cast<double>(cur_c.size()) / kTcgParams.corner_len_divisor)) /
           static_cast<double>(iter);
       std::vector<double> ori_diff_vec, Dtheta;
       filter_co_circular_along_cfrag(cur_c, cur_nbr_num, ori_diff_vec, Dtheta);
@@ -177,7 +181,7 @@ CornerBreakResult contour_breaker_at_corner(const std::vector<Contour>& cfrags_i
       ori_diff_vec = smooth_moving_default(ori_diff_vec);
 
       for (size_t k = 0; k < Dtheta.size(); ++k) {
-        if (Dtheta[k] < (ori_diff_th / 2.0)) ori_diff_vec[k] = Dtheta[k];
+        if (Dtheta[k] < (ori_diff_th / kTcgParams.corner_dtheta_factor)) ori_diff_vec[k] = Dtheta[k];
       }
 
       int id0 = argmax_first(ori_diff_vec);

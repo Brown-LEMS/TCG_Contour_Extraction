@@ -6,8 +6,8 @@
 namespace tcg {
 
 struct MergeGeomParams {
-  double geom_merge_angle_th{3.14159265358979323846 / 6.0};
-  int nbr_num_edges{20};
+  double geom_merge_angle_th{kTcgParams.geom_merge_angle_th};
+  int nbr_num_edges{kTcgParams.nbr_num_edges};
 };
 
 struct MergeGeomResult {

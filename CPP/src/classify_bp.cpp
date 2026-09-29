@@ -1,5 +1,6 @@
 #include "classify_bp.hpp"
 #include "fac_graph.hpp"
+#include "tcg_params.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -41,7 +42,7 @@ ClassifyBPResult classify_junction_type_wrt_graph_BP(const std::vector<Contour>&
   const double angle_diff_th = params.BP_merge_angle_th;
   const int nbr_num_edges = params.BP_nbr_num_edges;
   const double clen_th = params.BP_clen_th;
-  const double w0 = 1.0;
+  const double w0 = kTcgParams.BP_cost_weight;
 
   ClassifyBPResult result;
   result.contours = cfrags_in;

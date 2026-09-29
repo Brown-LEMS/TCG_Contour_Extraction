@@ -1,4 +1,5 @@
 #include "dp_gap.hpp"
+#include "tcg_params.hpp"
 
 #include <cmath>
 #include <limits>
@@ -27,8 +28,8 @@ struct NodeMinCmp {
 double step_cost(const Node* p, const Node* q, const std::vector<double>& E_map,
                  const std::vector<double>& E_map_soft, const std::vector<double>& O_map, int h,
                  double sx, double sy, double contrast_th) {
-  double wG = 0.65;
-  double wS = 0.35;
+  double wG = kTcgParams.dp_weight_gradient;
+  double wS = kTcgParams.dp_weight_shape;
   const int px = p->x;
   const int py = p->y;
   const int qx = q->x;
@@ -36,7 +37,7 @@ double step_cost(const Node* p, const Node* q, const std::vector<double>& E_map,
 
   double fG = E_map_soft[static_cast<size_t>(qx * h + qy)];
   if (fG < contrast_th) return std::numeric_limits<double>::infinity();
-  fG = fG * fG / (fG * fG + 0.01);
+  fG = fG * fG / (fG * fG + kTcgParams.dp_grad_denom_eps);
 
   double fZ = E_map[static_cast<size_t>(qx * h + qy)];
   if (fZ == 1.0) fZ = 0.0;
@@ -50,12 +51,14 @@ double step_cost(const Node* p, const Node* q, const std::vector<double>& E_map,
   dq = dq / dist;
   if (dq < 0) dq = -dq;
   const double dq_c = std::min(1.0, std::max(0.0, dq));
-  const double fO = std::exp(-std::acos(dq_c) * std::acos(dq_c) / M_PI * 4.0 / M_PI * 4.0 / 2.0);
+  const double kappa = kTcgParams.dp_ori_kappa;
+  const double fO = std::exp(-std::acos(dq_c) * std::acos(dq_c) / M_PI * kappa / M_PI * kappa / 2.0);
 
   const double cos_s =
       std::min(1.0, std::max(-1.0, (std::cos(p->theta) * dx + std::sin(p->theta) * dy) / dist));
   double fS = (1.0 / M_PI) * std::acos(cos_s);
-  if (px == static_cast<int>(sx) && py == static_cast<int>(sy)) wS *= 2.0;
+  if (px == static_cast<int>(sx) && py == static_cast<int>(sy))
+    wS *= kTcgParams.dp_start_shape_weight_scale;
 
   return wG * (1.0 - fG * fO * (1.0 - fZ)) * dist + wS * fS * dist;
 }
@@ -131,7 +134,7 @@ DpGapResult dp_gap_cpt(const std::vector<double>& E_map, const std::vector<doubl
 
         const double nd = std::sqrt(static_cast<double>(dx * dx + dy * dy));
         const double cos_dir_diff = (std::cos(qtheta) * dx + std::sin(qtheta) * dy) / nd;
-        if (cos_dir_diff < 0.1) {
+        if (cos_dir_diff < kTcgParams.dp_local_dir_cos_min) {
           ind_e[static_cast<size_t>(rx * h + ry)] = 1;
           continue;
         }

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "tcg_params.hpp"
+
 #include <array>
 #include <cstddef>
 #include <string>
@@ -42,19 +44,19 @@ struct CemFile {
 };
 
 struct BreakerParams {
-  int nbr_num_edges{20};
+  int nbr_num_edges{kTcgParams.nbr_num_edges};
   /// Default corner threshold (radians); can be overridden per call.
-  double corner_angle_th{3.14159265358979323846 / 6.0};
+  double corner_angle_th{kTcgParams.corner_angle_th};
 };
 
-/// Parameters used by contour_fill_gaps_DP (main_TCG_CH.m defaults).
+/// Parameters used by contour_fill_gaps_DP. Defaults come from kTcgParams.
 struct GapFillParams {
-  int DP_gap_range{15};
-  double DP_angle_th{3.14159265358979323846 / 4.0};
-  double DP_contrast_th{0.1};
-  int shape_gap_range{8};
-  double shape_ori_range{3.14159265358979323846 / 9.0};
-  bool vis{false};
+  int DP_gap_range{kTcgParams.DP_gap_range};
+  double DP_angle_th{kTcgParams.DP_angle_th};
+  double DP_contrast_th{kTcgParams.DP_contrast_th};
+  int shape_gap_range{kTcgParams.shape_gap_range};
+  double shape_ori_range{kTcgParams.shape_ori_range};
+  bool vis{kTcgParams.vis};
 };
 
 /// Soft edge magnitude + orientation maps from imgradient (row-major, size h*w).

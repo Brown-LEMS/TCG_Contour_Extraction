@@ -5,8 +5,8 @@
 namespace tcg {
 
 struct PruneParams {
-  double noise_len_th{5.0};
-  double noise_prob_th{0.05};
+  double noise_len_th{kTcgParams.noise_len_th};
+  double noise_prob_th{kTcgParams.noise_prob_th};
 };
 
 struct PruneResult {

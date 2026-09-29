@@ -11,21 +11,16 @@
 #include "write_jct.hpp"
 
 #include <chrono>
-#include <cmath>
 #include <iostream>
 #include <string>
 #include <vector>
-
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
 
 enum class OutputFormat { Cem, Cemv, Both };
 
 static void print_usage(const char* argv0) {
     std::cerr << "Usage: " << argv0 << " <input.edg> <input.cem> <input.image> [format] [output]\n"
               << "  Runs Step 3 (corner break) through final post-process.\n"
-              << "  Corner ori_diff_th is fixed at pi/18 (matching main_TCG_CH.m).\n"
+              << "  Thresholds live in include/tcg_params.hpp (main_TCG_CH.m defaults).\n"
               << "  format: cem | cemv | both   (default: both)\n"
               << "  output: output path or stem\n"
               << "    - format=cem:  writes .cem  (default: "
@@ -182,9 +177,9 @@ int main(int argc, char** argv) {
     resolve_output_paths(format, img_path, output_arg, have_output, out_cem, out_cemv, out_jct,
                          do_cem, do_cemv);
 
-    //> This corner orientation threshold is made constant, corresponding to
-    // main_TCG_CH.m Step 3
-    const double ori_th = M_PI / 18.0;
+    // First corner break uses corner_ori_diff_th; later passes use corner_angle_th.
+    // Both are defined in include/tcg_params.hpp.
+    const double ori_th = tcg::kTcgParams.corner_ori_diff_th;
 
     tcg::EdgFile edg;
     tcg::CemFile cem;
@@ -215,9 +210,7 @@ int main(int argc, char** argv) {
     //> Soft map from .edg (MATLAB edgemap_soft0)
     const std::vector<double>& edgemap_soft0 = edg.edgemap;
 
-    tcg::BreakerParams bparams;
-    bparams.nbr_num_edges = 20;
-    bparams.corner_angle_th = M_PI / 6.0;
+    const tcg::BreakerParams bparams;
 
     //>=========== MATLAB contour_breaker_at_corner function =============
     auto t0 = std::chrono::steady_clock::now();
@@ -232,12 +225,7 @@ int main(int argc, char** argv) {
     //>============= MATLAB contour_breaker_at_corner function ==============
 
     //>============== MATLAB contour_fill_gaps_DP function ==========================
-    tcg::GapFillParams gparams;
-    gparams.DP_gap_range = 15;
-    gparams.DP_angle_th = M_PI / 4.0;
-    gparams.DP_contrast_th = 0.1;
-    gparams.shape_gap_range = 8;
-    gparams.shape_ori_range = M_PI / 9.0;
+    const tcg::GapFillParams gparams;
 
     t0 = std::chrono::steady_clock::now();
     tcg::GapFillResult filled = tcg::contour_fill_gaps_DP(broken.contours, broken.contour_edge_idx,
@@ -261,9 +249,7 @@ int main(int argc, char** argv) {
     //>============ MATLAB break_contours_at_T_junctions function =============
 
     //>============MATLAB prune_noise_curves function ============
-    tcg::PruneParams pparams;
-    pparams.noise_len_th = 5.0;
-    pparams.noise_prob_th = 0.05;
+    const tcg::PruneParams pparams;
 
     t0 = std::chrono::steady_clock::now();
     tcg::PruneResult pruned = tcg::prune_noise_curves(tbroken.contours, tbroken.contour_edge_idx, h,
@@ -275,9 +261,7 @@ int main(int argc, char** argv) {
     //>=========== MATLAB prune_noise_curves function ============
 
     //>============= MATLAB merge_cfrags_graphical_model_geomfunction ============
-    tcg::MergeGeomParams mparams;
-    mparams.geom_merge_angle_th = M_PI / 6.0;
-    mparams.nbr_num_edges = 20;
+    const tcg::MergeGeomParams mparams;
 
     t0 = std::chrono::steady_clock::now();
     tcg::MergeGeomResult merged = tcg::merge_cfrags_graphical_model_geom(
@@ -289,10 +273,7 @@ int main(int argc, char** argv) {
     //>============ MATLAB merge_cfrags_graphical_model_geom function ============
 
     //>============== MATLAB classify_junction_type_wrt_graph_BP function ==========
-    tcg::ClassifyBPParams bpparams;
-    bpparams.BP_merge_angle_th = M_PI / 9.0;
-    bpparams.BP_nbr_num_edges = 20;
-    bpparams.BP_clen_th = 15.0;
+    const tcg::ClassifyBPParams bpparams;
 
     t0 = std::chrono::steady_clock::now();
     tcg::ClassifyBPResult classified = tcg::classify_junction_type_wrt_graph_BP(

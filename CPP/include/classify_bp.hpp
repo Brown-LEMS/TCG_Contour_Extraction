@@ -6,9 +6,9 @@
 namespace tcg {
 
 struct ClassifyBPParams {
-  double BP_merge_angle_th{3.14159265358979323846 / 9.0};
-  int BP_nbr_num_edges{20};
-  double BP_clen_th{15.0};
+  double BP_merge_angle_th{kTcgParams.BP_merge_angle_th};
+  int BP_nbr_num_edges{kTcgParams.BP_nbr_num_edges};
+  double BP_clen_th{kTcgParams.BP_clen_th};
 };
 
 struct ClassifyBPResult {

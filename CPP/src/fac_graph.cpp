@@ -1,4 +1,5 @@
 #include "fac_graph.hpp"
+#include "tcg_params.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -88,7 +89,8 @@ void interpolate_cfrag(const Contour& cfrag, std::vector<double>& x_coords, std:
     const double dy = path[i].second - path[i - 1].second;
     cum[i] = cum[i - 1] + std::sqrt(dx * dx + dy * dy);
   }
-  const int n_samp = std::max(2, static_cast<int>(std::lround(c_len) * 2));
+  const int n_samp =
+      std::max(2, static_cast<int>(std::lround(c_len) * kTcgParams.cfrag_resample_factor));
   x_coords.resize(static_cast<size_t>(n_samp));
   y_coords.resize(static_cast<size_t>(n_samp));
   for (int s = 0; s < n_samp; ++s) {
@@ -129,8 +131,9 @@ double co_circular_cost(const Contour& c1_in, const Contour& c2_in) {
     return std::acos(cosv);
   };
 
-  double local_diff_alpha = local_angle(c1, c2, 5);
-  if (static_cast<int>(c1.size()) <= 5 || static_cast<int>(c2.size()) <= 5) {
+  double local_diff_alpha = local_angle(c1, c2, kTcgParams.cocirc_local_len);
+  if (static_cast<int>(c1.size()) <= kTcgParams.cocirc_local_len ||
+      static_cast<int>(c2.size()) <= kTcgParams.cocirc_local_len) {
     return local_diff_alpha;
   }
 
@@ -146,7 +149,7 @@ double co_circular_cost(const Contour& c1_in, const Contour& c2_in) {
     ic2[i].x = x2s[i];
     ic2[i].y = y2s[i];
   }
-  local_diff_alpha = local_angle(ic1, ic2, 15);
+  local_diff_alpha = local_angle(ic1, ic2, kTcgParams.cocirc_interp_len);
 
   const int len1 = static_cast<int>(ic1.size()) - 2;
   const int len2 = static_cast<int>(ic2.size()) - 2;

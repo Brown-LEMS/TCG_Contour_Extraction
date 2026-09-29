@@ -1,5 +1,6 @@
 #include "contour_fill_gaps.hpp"
 #include "dp_gap.hpp"
+#include "tcg_params.hpp"
 #include "matlab_bwmorph.hpp"
 #include "matlab_bwdist.hpp"
 
@@ -101,7 +102,7 @@ std::vector<int> find_junction_map(const cv::Mat& edge_bin /* 0/1 */, int h, int
 
 std::vector<int> convert_cfrags_to_EdgeGroupMap(const std::vector<Contour>& cfrags, int h, int w) {
   std::vector<int> label(static_cast<size_t>(h) * static_cast<size_t>(w), 0);
-  const double ratio = 2.0;
+  const double ratio = kTcgParams.edgegroup_sample_ratio;
   for (size_t ci = 0; ci < cfrags.size(); ++ci) {
     const Contour& c = cfrags[ci];
     if (c.size() < 2) continue;
@@ -262,8 +263,10 @@ void geometric_completion_pass(FacGraph& G, std::vector<Contour>& cfrags,
   std::vector<int> xx, yy;
   std::vector<double> rr, th;
   make_nbr_grids(search_nbr_range, xx, yy, rr, th);
-  const double line_scale = (pass == GeomPass::First) ? 0.5 : 0.75;
-  const double dist_scale = (pass == GeomPass::First) ? 1.0 : 2.0;
+  const double line_scale = (pass == GeomPass::First) ? kTcgParams.geom_line_scale_pass1
+                                                      : kTcgParams.geom_line_scale_pass2;
+  const double dist_scale = (pass == GeomPass::First) ? kTcgParams.geom_dist_scale_pass1
+                                                       : kTcgParams.geom_dist_scale_pass2;
 
   for (size_t vid = 0; vid < G.vars.size(); ++vid) {
     FacVar& var = G.vars[vid];
@@ -290,17 +293,17 @@ void geometric_completion_pass(FacGraph& G, std::vector<Contour>& cfrags,
     Contour& cur_c = cfrags[static_cast<size_t>(cid)];
     const double c_len0 = contour_length(cur_c);
     const int e_size = static_cast<int>(cur_c.size());
-    if (pass == GeomPass::First && e_size < 10) continue;
+    if (pass == GeomPass::First && e_size < kTcgParams.geom_min_edges_pass1) continue;
 
     bool is_start = true;
     double end_dx = 0, end_dy = 0;
     if (G.facs[static_cast<size_t>(cid)].nbrs_var[0] == static_cast<int>(vid)) {
-      const int j = std::min(e_size, 5) - 1;
+      const int j = std::min(e_size, kTcgParams.geom_tangent_edges) - 1;
       end_dx = cur_c[0].x - cur_c[static_cast<size_t>(j)].x;
       end_dy = cur_c[0].y - cur_c[static_cast<size_t>(j)].y;
     } else {
       is_start = false;
-      const int j = std::max(e_size - 5, 0);
+      const int j = std::max(e_size - kTcgParams.geom_tangent_edges, 0);
       end_dx = cur_c.back().x - cur_c[static_cast<size_t>(j)].x;
       end_dy = cur_c.back().y - cur_c[static_cast<size_t>(j)].y;
     }
@@ -313,7 +316,8 @@ void geometric_completion_pass(FacGraph& G, std::vector<Contour>& cfrags,
       }
     };
     mark_fan(angle + search_ori_range, angle - search_ori_range, search_nbr_range);
-    mark_fan(angle + M_PI / 3.0, angle - M_PI / 3.0, 2.0);
+    mark_fan(angle + kTcgParams.geom_wide_fan_half_angle, angle - kTcgParams.geom_wide_fan_half_angle,
+             kTcgParams.geom_wide_fan_radius);
 
     int add_end_edge_idx1 = -1;
     double dist_1 = 0;
@@ -469,7 +473,7 @@ GapFillResult contour_fill_gaps_DP(const std::vector<Contour>& cfrags_in,
   const double contrast_th = params.DP_contrast_th;
   const int search_nbr_range = params.shape_gap_range;
   const double search_ori_range = params.shape_ori_range;
-  const double cost_th = 2.0;
+  const double cost_th = kTcgParams.gap_cost_th;
 
   FacGraph G = construct_fac_graph(cfrags_idx);
   std::vector<int> end_point_eid_map, end_point_vid_map;
@@ -498,7 +502,7 @@ GapFillResult contour_fill_gaps_DP(const std::vector<Contour>& cfrags_in,
   for (int y = 0; y < h; ++y) {
     for (int x = 0; x < w; ++x) {
       const double d = static_cast<double>(dt.at<float>(y, x));
-      DT_map[idx2(y, x, w)] = std::exp(-(d * d) / 8.0);
+      DT_map[idx2(y, x, w)] = std::exp(-(d * d) / kTcgParams.dt_sq_denom);
     }
   }
 
@@ -524,13 +528,13 @@ GapFillResult contour_fill_gaps_DP(const std::vector<Contour>& cfrags_in,
     bool is_start = true;
     double end_dx = 0, end_dy = 0;
     if (G.facs[static_cast<size_t>(cid)].nbrs_var[0] == static_cast<int>(vid)) {
-      const int j = std::min(e_size, 4) - 1;
+      const int j = std::min(e_size, kTcgParams.dp_tangent_edges) - 1;
       end_dx = cur_c[0].x - cur_c[static_cast<size_t>(j)].x;
       end_dy = cur_c[0].y - cur_c[static_cast<size_t>(j)].y;
     } else {
       is_start = false;
       // MATLAB: cur_c(end,:) - cur_c(max(e_size-3,1),:)
-      const int j = std::max(e_size - 4, 0);
+      const int j = std::max(e_size - kTcgParams.dp_tangent_edges, 0);
       end_dx = cur_c.back().x - cur_c[static_cast<size_t>(j)].x;
       end_dy = cur_c.back().y - cur_c[static_cast<size_t>(j)].y;
     }
@@ -561,10 +565,10 @@ GapFillResult contour_fill_gaps_DP(const std::vector<Contour>& cfrags_in,
     int best_i = -1;
     for (int i = 0; i < N; ++i) {
       double cn = dp.cost[static_cast<size_t>(i)] / std::max(dp.len[static_cast<size_t>(i)], 1e-12);
-      if (dp.len[static_cast<size_t>(i)] > r_range) cn = 1000.0;
+      if (dp.len[static_cast<size_t>(i)] > r_range) cn = kTcgParams.gap_invalid_cost;
       const int yy = i % h_ref;
       const int xx = i / h_ref;
-      if (jct_map[idx2(y_min - 1 + yy, x_min - 1 + xx, w)] > 0) cn = 1000.0;
+      if (jct_map[idx2(y_min - 1 + yy, x_min - 1 + xx, w)] > 0) cn = kTcgParams.gap_invalid_cost;
       if (cn < best_s) {
         best_s = cn;
         best_i = i;
@@ -602,7 +606,9 @@ GapFillResult contour_fill_gaps_DP(const std::vector<Contour>& cfrags_in,
       double mean_p = 0;
       for (double p : path_prob) mean_p += p;
       mean_p /= static_cast<double>(path_prob.size());
-      if (mean_p < 0.05 && path_prob.size() > 5) continue;
+      if (mean_p < kTcgParams.gap_path_mean_prob_th &&
+          path_prob.size() > static_cast<size_t>(kTcgParams.gap_path_prob_min_len))
+        continue;
     }
 
     int replace_end_edge_idx = -1;

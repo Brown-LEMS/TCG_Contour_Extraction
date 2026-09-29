@@ -1,5 +1,6 @@
 #include "prune_noise.hpp"
 #include "fac_graph.hpp"
+#include "tcg_params.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -85,13 +86,15 @@ PruneResult prune_noise_curves(const std::vector<Contour>& cfrags_in,
       }
     } else if (deg == 3) {
       for (int cid : var.nbrs_fac) {
-        if (static_cast<int>(result.contour_edge_idx[static_cast<size_t>(cid)].size()) > 2 * len_th)
+        if (static_cast<int>(result.contour_edge_idx[static_cast<size_t>(cid)].size()) >
+            kTcgParams.prune_branch_len_factor * len_th)
           continue;
         const int cvid = other_var(G.facs[static_cast<size_t>(cid)], static_cast<int>(vid));
         if (cvid < 0) continue;
         for (int ccid : G.vars[static_cast<size_t>(cvid)].nbrs_fac) {
           if (ccid == cid) continue;
-          if (static_cast<int>(result.contour_edge_idx[static_cast<size_t>(ccid)].size()) > 2 * len_th)
+          if (static_cast<int>(result.contour_edge_idx[static_cast<size_t>(ccid)].size()) >
+              kTcgParams.prune_branch_len_factor * len_th)
             continue;
           const int ccvid = other_var(G.facs[static_cast<size_t>(ccid)], cvid);
           if (ccvid == static_cast<int>(vid)) {
@@ -108,7 +111,8 @@ PruneResult prune_noise_curves(const std::vector<Contour>& cfrags_in,
     const auto& cur_c_idx = result.contour_edge_idx[cid];
     if (cur_c_idx.empty()) continue;
     if (cur_c_idx.front() == cur_c_idx.back()) {
-      if (contour_length(result.contours[cid]) < 3.0 * len_th) cid_to_remove.insert(static_cast<int>(cid));
+      if (contour_length(result.contours[cid]) < kTcgParams.prune_isolated_len_factor * len_th)
+        cid_to_remove.insert(static_cast<int>(cid));
       continue;
     }
     const int v0 = G.facs[cid].nbrs_var[0];
@@ -117,7 +121,8 @@ PruneResult prune_noise_curves(const std::vector<Contour>& cfrags_in,
         G.vars[static_cast<size_t>(v1)].nbrs_fac.size() == 1) {
       const double c_len = contour_length(result.contours[cid]);
       const double avg_prob = mean_soft(result.contours[cid], h, w, edgemap_soft);
-      if ((avg_prob < prob_th && c_len < 3.0 * len_th) || c_len < len_th) {
+      if ((avg_prob < prob_th && c_len < kTcgParams.prune_isolated_len_factor * len_th) ||
+          c_len < len_th) {
         cid_to_remove.insert(static_cast<int>(cid));
       }
     }
